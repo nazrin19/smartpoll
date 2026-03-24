@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartPoll</title>
+  <link rel="stylesheet" href="C:\Users\admin\Desktop\Smartpoll\Static\style.css">
+</head>
+<body>
+
+  <div class="container">
+
+    <div class="hero">
+      <h1>Smart<span>Poll</span></h1>
+      <p>Live polling with branching logic — smarter than Mentimeter, completely free.</p>
+    </div>
+
+    <div class="cards">
+
+      <!-- HOST card -->
+      <div class="card">
+        <div class="card-icon">🎤</div>
+        <h2>Host a poll</h2>
+        <p>Create questions with branching logic and share a code with your audience.</p>
+        <a href="/host" class="btn btn-primary">Create a room</a>
+      </div>
+
+      <!-- GUEST card -->
+      <div class="card">
+        <div class="card-icon">🗳️</div>
+        <h2>Join a poll</h2>
+        <p>Enter the room code your host shared and start voting live.</p>
+        <div class="join-form">
+          <input type="text" id="roomCode" placeholder="Enter code e.g. XK92F1" maxlength="6">
+          <button class="btn btn-secondary" onclick="joinRoom()">Join</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function joinRoom() {
+      const code = document.getElementById('roomCode').value.trim().toUpperCase();
+      if (code.length === 6) {
+        window.location.href = `/vote?room=${code}`;
+      } else {
+        alert('Please enter a valid 6-character room code.');
+      }
+    }
+
+    // Allow pressing Enter to join
+    document.getElementById('roomCode').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') joinRoom();
+    });
+  </script>
+
+</body>
+</html>
