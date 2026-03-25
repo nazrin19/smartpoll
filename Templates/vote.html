@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SmartPoll — Vote</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body class="bg-[#0F0F0F] text-white min-h-screen flex items-center justify-center p-6">
+    <div id="app" class="max-w-md w-full bg-[#1A1A1A] border border-[#2A2A2A] p-8 rounded-3xl text-center shadow-2xl">
+        
+        <div id="wait">
+            <div class="w-12 h-12 border-4 border-[#7F77DD] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p id="statusText" class="text-gray-400">Connecting to room...</p>
+        </div>
+
+        <div id="poll" class="hidden text-left">
+            <h2 id="qText" class="text-2xl font-bold mb-8 text-center leading-tight"></h2>
+            <div id="btnGrid" class="space-y-4"></div>
+        </div>
+
+        <div id="done" class="hidden">
+            <div class="text-5xl mb-4">✨</div>
+            <h2 class="text-xl font-bold">Thank you!</h2>
+            <p class="text-gray-500 mt-2">Your path in this poll is complete.</p>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const urlParams = new URLSearchParams(window.location.search);
+        const room = urlParams.get('room');
+
+        if (!room) {
+            alert("No room code found in URL!");
+            window.location.href = "/";
+        }
+
+        // Join the room as soon as we connect
+        socket.on('connect', () => {
+            console.log("Connected to server. Joining room:", room);
+            socket.emit('join', { room: room });
+            document.getElementById('statusText').innerText = "Waiting for host to launch...";
+        });
+
+        // Listen for questions
+        socket.on('new_question', (data) => {
+            if (!data) {
+                showElement('done');
+                return;
+            }
+
+            showElement('poll');
+            document.getElementById('qText').innerText = data.text;
+            
+            const grid = document.getElementById('btnGrid');
+            grid.innerHTML = "";
+            
+            data.options.forEach(opt => {
+                const b = document.createElement('button');
+                b.className = "w-full py-4 bg-[#7F77DD] rounded-2xl font-bold text-lg hover:bg-opacity-90 transition-all";
+                b.innerText = opt.label;
+                b.onclick = () => {
+                    // Send the vote AND the next branch index
+                    socket.emit('submit_vote', {
+                        room: room,
+                        answer: opt.label,
+                        next_index: opt.next 
+                    });
+                    showElement('wait');
+                    document.getElementById('statusText').innerText = "Submitting...";
+                };
+                grid.appendChild(b);
+            });
+        });
+
+        function showElement(id) {
+            ['wait', 'poll', 'done'].forEach(el => {
+                document.getElementById(el).classList.toggle('hidden', el !== id);
+            });
+        }
+
+        // Error handling
+        socket.on('connect_error', () => {
+            document.getElementById('statusText').innerText = "Connection Failed. Is the server running?";
+            document.getElementById('statusText').classList.add('text-red-500');
+        });
+    </script>
+</body>
+</html>

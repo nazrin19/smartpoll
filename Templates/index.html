@@ -1,139 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmartPoll</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            primary: '#7F77DD',
-            dark: '#0F0F0F',
-            card: '#1A1A1A',
-            border: '#2A2A2A',
-          }
-        }
-      }
-    }
-  </script>
+    <meta charset="UTF-8">
+    <title>SmartPoll</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { primary: '#7F77DD', dark: '#0F0F0F', card: '#1A1A1A', border: '#2A2A2A' } } } }
+    </script>
 </head>
-<body class="bg-dark min-h-screen text-white flex flex-col">
-
-  <!-- Navbar -->
-  <nav class="border-b border-border px-8 py-4 flex items-center justify-between">
-    <div class="text-xl font-bold">
-      Smart<span class="text-primary">Poll</span>
-    </div>
-    <div class="text-sm text-gray-500">
-      Free · Live · Smart
-    </div>
-  </nav>
-
-  <!-- Hero -->
-  <main class="flex-1 flex flex-col items-center justify-center px-6 py-16">
-    <div class="text-center mb-12">
-      <div class="inline-block bg-primary bg-opacity-10 border border-primary border-opacity-30 text-primary text-xs px-4 py-1 rounded-full mb-6">
-        Smarter than Mentimeter — completely free
-      </div>
-      <h1 class="text-5xl font-bold mb-4 leading-tight">
-        Live polling with
-        <span class="text-primary"> branching logic</span>
-      </h1>
-      <p class="text-gray-400 text-lg max-w-xl mx-auto">
-        Ask smarter questions. Every participant gets a different path based on their answers — in real time.
-      </p>
-    </div>
-
-    <!-- Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
-
-      <!-- Host Card -->
-      <div class="bg-card border border-border rounded-2xl p-8 flex flex-col gap-4 hover:border-primary transition-colors duration-200">
-        <div class="w-12 h-12 bg-primary bg-opacity-10 rounded-xl flex items-center justify-center text-2xl">
-          🎤
+<body class="bg-dark text-white min-h-screen flex flex-col">
+    <nav class="border-b border-border px-8 py-4 flex justify-between">
+        <div class="text-xl font-bold">Smart<span class="text-primary">Poll</span></div>
+    </nav>
+    <main class="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <h1 class="text-5xl font-bold mb-6">Live polling with <span class="text-primary">branching logic</span></h1>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
+            <div class="bg-card border border-border p-8 rounded-2xl hover:border-primary transition">
+                <h2 class="text-xl font-bold mb-4">Host a Poll</h2>
+                <a href="/host" class="block bg-primary py-3 rounded-xl font-bold">Create Room →</a>
+            </div>
+            <div class="bg-card border border-border p-8 rounded-2xl hover:border-primary transition">
+                <h2 class="text-xl font-bold mb-4">Join a Poll</h2>
+                <input type="text" id="joinCode" maxlength="6" placeholder="CODE" class="w-full bg-dark border border-border rounded-xl px-4 py-3 mb-3 text-center uppercase">
+                <button onclick="join()" class="w-full bg-white text-dark py-3 rounded-xl font-bold">Join Room</button>
+            </div>
         </div>
-        <div>
-          <h2 class="text-xl font-semibold mb-1">Host a poll</h2>
-          <p class="text-gray-400 text-sm leading-relaxed">
-            Create questions with branching logic. Share a code with your audience and watch results come in live.
-          </p>
-        </div>
-        <a href="/host"
-          class="mt-auto inline-block text-center bg-primary hover:bg-opacity-90 text-white font-medium py-3 px-6 rounded-xl transition-opacity duration-150">
-          Create a room →
-        </a>
-      </div>
-
-      <!-- Join Card -->
-      <div class="bg-card border border-border rounded-2xl p-8 flex flex-col gap-4 hover:border-primary transition-colors duration-200">
-        <div class="w-12 h-12 bg-primary bg-opacity-10 rounded-xl flex items-center justify-center text-2xl">
-          🗳️
-        </div>
-        <div>
-          <h2 class="text-xl font-semibold mb-1">Join a poll</h2>
-          <p class="text-gray-400 text-sm leading-relaxed">
-            Enter the room code your host shared and start voting instantly. No account needed.
-          </p>
-        </div>
-        <div class="mt-auto flex flex-col gap-3">
-          <input
-            type="text"
-            id="roomCode"
-            maxlength="6"
-            placeholder="Enter code e.g. XK92F1"
-            class="bg-dark border border-border rounded-xl px-4 py-3 text-white placeholder-gray-600 uppercase tracking-widest text-center focus:outline-none focus:border-primary transition-colors duration-150"
-          />
-          <button
-            onclick="joinRoom()"
-            class="bg-white text-dark font-medium py-3 px-6 rounded-xl hover:bg-gray-100 transition-colors duration-150">
-            Join room →
-          </button>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Stats row -->
-    <div class="flex gap-10 mt-14 text-center">
-      <div>
-        <div class="text-2xl font-bold text-primary">Free</div>
-        <div class="text-xs text-gray-500 mt-1">Always</div>
-      </div>
-      <div class="w-px bg-border"></div>
-      <div>
-        <div class="text-2xl font-bold text-primary">Live</div>
-        <div class="text-xs text-gray-500 mt-1">Real-time results</div>
-      </div>
-      <div class="w-px bg-border"></div>
-      <div>
-        <div class="text-2xl font-bold text-primary">Smart</div>
-        <div class="text-xs text-gray-500 mt-1">Branching logic</div>
-      </div>
-    </div>
-  </main>
-
-  <!-- Footer -->
-  <footer class="border-t border-border px-8 py-4 text-center text-xs text-gray-600">
-    SmartPoll — built with Flask + SocketIO
-  </footer>
-
-  <script>
-    function joinRoom() {
-      const code = document.getElementById('roomCode').value.trim().toUpperCase();
-      if (code.length === 6) {
-        window.location.href = `/vote?room=${code}`;
-      } else {
-        alert('Please enter a valid 6-character room code.');
-      }
-    }
-
-    document.getElementById('roomCode').addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') joinRoom();
-    });
-  </script>
-
+    </main>
+    <script>
+        function join() {
+            const code = document.getElementById('joinCode').value.trim().toUpperCase();
+            if(code.length === 6) window.location.href = `/vote?room=${code}`;
+            else alert("Enter 6-digit code");
+        }
+    </script>
 </body>
 </html>
