@@ -2,105 +2,73 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SmartPoll — Vote</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 </head>
-<body class="bg-[#0F0F0F] text-white min-h-screen flex items-center justify-center p-6">
+<body class="bg-[#0F0F0F] text-white min-h-screen flex flex-col items-center justify-center p-6">
     
-    <div id="app" class="max-w-md w-full bg-[#1A1A1A] border border-[#2A2A2A] p-8 rounded-3xl text-center shadow-2xl">
-        
-        <div id="wait">
-            <div class="w-12 h-12 border-4 border-[#7F77DD] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p id="statusText" class="text-gray-400">Connecting to room...</p>
-        </div>
+    <div class="mb-6 w-full max-w-md">
+        <a href="/" class="text-gray-500 hover:text-white text-xs font-bold">← Exit to Home</a>
+    </div>
 
+    <div id="app" class="max-w-md w-full bg-[#1A1A1A] border border-[#2A2A2A] p-8 rounded-3xl text-center shadow-2xl">
+        <div id="wait">
+            <div id="spinner" class="w-12 h-12 border-4 border-[#7F77DD] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p id="status" class="text-gray-400">Waiting for poll to start...</p>
+        </div>
         <div id="poll" class="hidden text-left">
-            <p class="text-[#7F77DD] text-xs font-bold uppercase tracking-widest mb-2 text-center">Live Question</p>
-            <h2 id="qText" class="text-2xl font-bold mb-8 text-center leading-tight"></h2>
+            <h2 id="qText" class="text-2xl font-bold mb-8 text-center"></h2>
             <div id="btnGrid" class="space-y-4"></div>
         </div>
-
         <div id="done" class="hidden">
-            <div class="text-5xl mb-4">✨</div>
-            <h2 class="text-xl font-bold">Thank you!</h2>
-            <p class="text-gray-500 mt-2">Your path in this poll is complete.</p>
-            <button onclick="window.location.href='/'" class="mt-6 text-[#7F77DD] text-sm font-bold hover:underline">Return Home</button>
+            <h2 class="text-xl font-bold text-green-500 mb-2">Vote Recorded!</h2>
+            <p class="text-gray-400 mb-6">Thank you for participating.</p>
+            <a href="/" class="bg-[#2A2A2A] px-6 py-2 rounded-full text-xs font-bold">Back to Home</a>
         </div>
-
     </div>
 
     <script>
-        // 1. Initialize Socket
         const socket = io();
-        
-        // 2. Get Room Code from URL (e.g., ?room=ABC123)
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomCode = urlParams.get('room');
+        const roomCode = new URLSearchParams(window.location.search).get('room');
+        let currentTheme = "#7F77DD";
 
-        if (!roomCode) {
-            alert("No room code found! Redirecting to home.");
-            window.location.href = "/";
+        function joinPoll() {
+            if(roomCode) socket.emit('join', {room: roomCode, type: 'voter'});
         }
 
-        // 3. The Handshake: Join room ONLY after connection is confirmed
-        socket.on('connect', () => {
-            console.log("Connected to server. Joining room:", roomCode);
-            socket.emit('join', { room: roomCode });
-            document.getElementById('statusText').innerText = "Waiting for host to launch...";
+        socket.on('connect', joinPoll);
+        socket.on('poll_started', joinPoll);
+
+        socket.on('apply_theme', (d) => {
+            currentTheme = d.color;
+            document.getElementById('spinner').style.borderColor = d.color;
+            document.getElementById('spinner').style.borderTopColor = "transparent";
         });
 
-        // 4. The Listener: Wait for the server to push a question
         socket.on('new_question', (data) => {
-            console.log("New question received:", data);
-            
-            // If data is null or empty, the poll is over for this branch
-            if (!data) {
-                showElement('done');
-                return;
-            }
-
-            // Otherwise, show the question and build buttons
-            showElement('poll');
+            if(!data) { show('done'); return; }
+            show('poll');
             document.getElementById('qText').innerText = data.text;
-            
             const grid = document.getElementById('btnGrid');
-            grid.innerHTML = ""; // Clear old buttons
-            
-            data.options.forEach((opt) => {
+            grid.innerHTML = "";
+            data.options.forEach(opt => {
                 const btn = document.createElement('button');
-                btn.className = "w-full py-4 bg-[#7F77DD] rounded-2xl font-bold text-lg hover:bg-opacity-90 active:scale-95 transition-all shadow-lg";
+                btn.className = "w-full py-4 rounded-2xl font-bold transition-all active:scale-95";
+                btn.style.backgroundColor = currentTheme;
                 btn.innerText = opt.label;
-                
                 btn.onclick = () => {
-                    // Send the vote and the next branch index back to Flask
-                    socket.emit('submit_vote', {
-                        room: roomCode,
-                        answer: opt.label,
-                        next_index: opt.next // This powers the branching!
-                    });
-                    
-                    // Show the waiting screen until the NEXT branched question arrives
-                    showElement('wait');
-                    document.getElementById('statusText').innerText = "Recording your choice...";
+                    socket.emit('submit_vote', { room: roomCode, answer: opt.label, current_index: data.index, next_index: opt.next });
+                    show('wait');
+                    document.getElementById('status').innerText = "Submitting...";
                 };
                 grid.appendChild(btn);
             });
         });
 
-        // Helper function to switch between UI states
-        function showElement(id) {
-            ['wait', 'poll', 'done'].forEach(el => {
-                document.getElementById(el).classList.toggle('hidden', el !== id);
-            });
+        function show(id) {
+            ['wait', 'poll', 'done'].forEach(el => document.getElementById(el).classList.toggle('hidden', el !== id));
         }
-
-        // Error Handling
-        socket.on('connect_error', () => {
-            document.getElementById('statusText').innerText = "Connection lost. Reconnecting...";
-            document.getElementById('statusText').classList.add('text-red-500');
-        });
     </script>
 </body>
 </html>
