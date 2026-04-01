@@ -30,13 +30,11 @@
                 </div>
             </div>
 
-            <div class="bg-[#1A1A1A] p-6 rounded-3xl border border-[#2A2A2A] flex flex-col justify-center gap-3">
-                <p class="text-[10px] text-gray-500 uppercase font-bold">Theme</p>
-                <div class="flex gap-3">
-                    <button onclick="setTheme('#7F77DD')" class="w-8 h-8 rounded-full bg-[#7F77DD] border-2 border-white"></button>
-                    <button onclick="setTheme('#22c55e')" class="w-8 h-8 rounded-full bg-[#22c55e]"></button>
-                    <button onclick="setTheme('#f97316')" class="w-8 h-8 rounded-full bg-[#f97316]"></button>
-                    <button onclick="setTheme('#ec4899')" class="w-8 h-8 rounded-full bg-[#ec4899]"></button>
+            <div class="bg-[#1A1A1A] p-6 rounded-3xl border border-[#2A2A2A] flex flex-col justify-center gap-2 min-w-[160px]">
+                <p class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Session Status</p>
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span class="text-sm font-bold text-gray-300">Live & Ready</span>
                 </div>
             </div>
         </div>
@@ -44,12 +42,17 @@
         <div id="setup" class="bg-[#1A1A1A] p-8 rounded-3xl border border-[#2A2A2A]">
             <h2 id="setupTitle" class="text-2xl font-bold mb-6 text-[#7F77DD]">1. Create Your Question</h2>
             <input type="text" id="qIn" placeholder="Enter Question" class="w-full bg-black border border-[#2A2A2A] p-4 rounded-xl mb-4 outline-none focus:border-[#7F77DD]">
-            <div id="optsList" class="space-y-3 mb-4"></div>
+            
+            <div id="optsList" class="space-y-3 mb-4">
+                </div>
+            
             <button onclick="addOpt()" class="text-[#7F77DD] text-sm font-bold mb-6">+ Add Option</button>
+            
             <div class="flex gap-4 pt-6 border-t border-[#2A2A2A]">
-                <button onclick="saveQ()" class="flex-1 bg-[#2A2A2A] py-4 rounded-xl font-bold border border-[#333]">Save Question</button>
-                <button onclick="start()" id="startBtn" disabled class="flex-1 bg-[#7F77DD] py-4 rounded-xl font-bold opacity-30 cursor-not-allowed">Launch Poll</button>
+                <button onclick="saveQ()" class="flex-1 bg-[#2A2A2A] py-4 rounded-xl font-bold border border-[#333] hover:bg-[#333]">Save Question</button>
+                <button onclick="start()" id="startBtn" disabled class="flex-1 bg-[#7F77DD] py-4 rounded-xl font-bold opacity-30 cursor-not-allowed transition-all">Launch Poll</button>
             </div>
+            
             <div id="qQueue" class="mt-8 flex gap-2 flex-wrap"></div>
         </div>
 
@@ -63,7 +66,6 @@
         const socket = io();
         let roomCode = "";
         let questions = [];
-        let currentTheme = "#7F77DD";
 
         window.onload = async () => {
             const res = await fetch('/create_room', {method:'POST'});
@@ -71,67 +73,81 @@
             roomCode = data.code;
             document.getElementById('roomDisp').innerText = roomCode;
             socket.emit('join', {room: roomCode, type: 'host'});
-            addOpt(); addOpt();
+            addOpt(); addOpt(); // Start with 2 options
         };
 
         function copyVoteLink() {
             const link = `${window.location.origin}/vote?room=${roomCode}`;
             navigator.clipboard.writeText(link);
-            alert("Voter link copied to clipboard!");
+            alert("Voter link copied!");
         }
 
         function addOpt() {
             const div = document.createElement('div');
             div.className = "flex gap-2";
-            div.innerHTML = `<input type="text" placeholder="Option" class="opt-text flex-1 bg-black border border-[#2A2A2A] p-3 rounded-xl outline-none focus:border-[#7F77DD]">
-                             <input type="number" placeholder="→ Q#" class="opt-next w-16 bg-black border border-[#2A2A2A] rounded-xl text-center outline-none">`;
+            div.innerHTML = `
+                <input type="text" placeholder="Option Text" class="opt-text flex-1 bg-black border border-[#2A2A2A] p-3 rounded-xl outline-none focus:border-[#7F77DD]">
+                <input type="number" placeholder="→ Q#" class="opt-next w-16 bg-black border border-[#2A2A2A] rounded-xl text-center outline-none focus:border-[#7F77DD]">
+            `;
             document.getElementById('optsList').appendChild(div);
         }
 
         function saveQ() {
             const text = document.getElementById('qIn').value.trim();
             const opts = Array.from(document.querySelectorAll('#optsList > div')).map(el => ({
-                label: el.querySelector('.opt-text').value,
-                next: el.querySelector('.opt-next').value ? parseInt(el.querySelector('.opt-next').value)-1 : null
-            })).filter(o => o.label);
+                label: el.querySelector('.opt-text').value.trim(),
+                next: el.querySelector('.opt-next').value ? parseInt(el.querySelector('.opt-next').value) - 1 : null
+            })).filter(o => o.label !== "");
             
-            if(!text || opts.length < 2) return;
+            if(!text || opts.length < 2) {
+                alert("Please enter a question and at least 2 options.");
+                return;
+            }
+
             questions.push({text, options: opts});
             
-            // RESET & UPDATE COUNTER
+            // Reset UI for next question
             document.getElementById('qIn').value = "";
-            document.getElementById('optsList').innerHTML = ""; addOpt(); addOpt();
+            document.getElementById('optsList').innerHTML = ""; 
+            addOpt(); addOpt();
             document.getElementById('setupTitle').innerText = `${questions.length + 1}. Create Your Question`;
             
             renderQueue();
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('startBtn').classList.remove('opacity-30');
+            
+            // Enable Launch Button
+            const startBtn = document.getElementById('startBtn');
+            startBtn.disabled = false;
+            startBtn.classList.remove('opacity-30', 'cursor-not-allowed');
         }
 
         function renderQueue() {
-            document.getElementById('qQueue').innerHTML = questions.map((q, i) => `<div class="bg-black px-3 py-1 rounded-full border border-[#7F77DD] text-[10px]">Q${i+1} Saved</div>`).join('');
-        }
-
-        function setTheme(color) {
-            currentTheme = color;
-            socket.emit('change_theme', {room: roomCode, color: color});
-            document.getElementById('roomDisp').style.color = color;
+            document.getElementById('qQueue').innerHTML = questions.map((q, i) => 
+                `<div class="bg-black px-3 py-1 rounded-full border border-[#7F77DD] text-[10px]">Q${i+1} Saved</div>`
+            ).join('');
         }
 
         async function start() {
-            await fetch('/start_poll', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({code: roomCode, questions}) });
+            await fetch('/start_poll', { 
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body: JSON.stringify({code: roomCode, questions}) 
+            });
+
             document.getElementById('setup').classList.add('hidden');
             document.getElementById('live').classList.remove('hidden');
             
             document.getElementById('dashboardGrid').innerHTML = questions.map((q, i) => `
-                <div class="bg-[#1A1A1A] p-6 rounded-3xl border border-[#2A2A2A]">
-                    <h3 class="font-bold mb-4">${q.text}</h3>
+                <div class="bg-[#1A1A1A] p-6 rounded-3xl border border-[#2A2A2A] shadow-lg">
+                    <h3 class="font-bold mb-4 text-sm text-gray-300">Q${i+1}: ${q.text}</h3>
                     <div class="space-y-4">
                         ${q.options.map(o => `
                             <div>
-                                <div class="flex justify-between text-[10px] mb-1 font-bold"><span>${o.label}</span> <span id="val-${i}-${o.label}">0 votes</span></div>
+                                <div class="flex justify-between text-[10px] mb-1 font-bold">
+                                    <span>${o.label}</span> 
+                                    <span id="val-${i}-${o.label}" class="text-gray-500 text-[9px]">0 votes</span>
+                                </div>
                                 <div class="w-full bg-black h-1.5 rounded-full overflow-hidden">
-                                    <div id="bar-${i}-${o.label}" class="h-full transition-all duration-700" style="width: 0%; background: ${currentTheme}"></div>
+                                    <div id="bar-${i}-${o.label}" class="h-full transition-all duration-700" style="width: 0%; background: #7F77DD"></div>
                                 </div>
                             </div>`).join('')}
                     </div>
@@ -148,7 +164,10 @@
                     const count = qVotes[label];
                     const bar = document.getElementById(`bar-${qIdx}-${label}`);
                     const val = document.getElementById(`val-${qIdx}-${label}`);
-                    if(bar) { bar.style.width = (count/total * 100) + "%"; val.innerText = count + " votes"; }
+                    if(bar) { 
+                        bar.style.width = (count/total * 100) + "%"; 
+                        val.innerText = count + " votes"; 
+                    }
                 }
             }
         });

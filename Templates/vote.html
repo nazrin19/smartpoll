@@ -2,72 +2,108 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>SmartPoll — Vote</title>
+    <title>SmartPoll - Vote</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        .option-btn:active { transform: scale(0.98); }
+    </style>
 </head>
 <body class="bg-[#0F0F0F] text-white min-h-screen flex flex-col items-center justify-center p-6">
-    
-    <div class="mb-6 w-full max-w-md">
-        <a href="/" class="text-gray-500 hover:text-white text-xs font-bold">← Exit to Home</a>
-    </div>
 
-    <div id="app" class="max-w-md w-full bg-[#1A1A1A] border border-[#2A2A2A] p-8 rounded-3xl text-center shadow-2xl">
-        <div id="wait">
-            <div id="spinner" class="w-12 h-12 border-4 border-[#7F77DD] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p id="status" class="text-gray-400">Waiting for poll to start...</p>
+    <div id="app-container" class="w-full max-w-xl">
+        
+        <div id="status-container" class="text-center">
+            <div id="loader" class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#7F77DD] mx-auto mb-4"></div>
+            <h2 id="status-message" class="text-xl font-medium text-gray-400">Connecting to room...</h2>
         </div>
-        <div id="poll" class="hidden text-left">
-            <h2 id="qText" class="text-2xl font-bold mb-8 text-center"></h2>
-            <div id="btnGrid" class="space-y-4"></div>
+
+        <div id="question-container" class="hidden">
+            <div class="bg-[#1A1A1A] border border-[#2A2A2A] rounded-3xl p-8 shadow-2xl">
+                <span class="text-[#7F77DD] text-xs font-bold uppercase tracking-widest">Question</span>
+                <h1 id="question-text" class="text-2xl font-bold mt-2 mb-8 leading-tight">---</h1>
+                <div id="options-grid" class="grid grid-cols-1 gap-4"></div>
+            </div>
         </div>
-        <div id="done" class="hidden">
-            <h2 class="text-xl font-bold text-green-500 mb-2">Vote Recorded!</h2>
-            <p class="text-gray-400 mb-6">Thank you for participating.</p>
-            <a href="/" class="bg-[#2A2A2A] px-6 py-2 rounded-full text-xs font-bold">Back to Home</a>
+
+        <div id="finished-container" class="hidden text-center">
+            <div class="text-6xl mb-6">🎉</div>
+            <h1 class="text-3xl font-bold mb-2">Thank You!</h1>
+            <p class="text-gray-500">Your responses have been saved.</p>
+            <button onclick="window.location.href='/'" class="mt-8 text-[#7F77DD] font-bold">← Back Home</button>
         </div>
     </div>
 
     <script>
         const socket = io();
-        const roomCode = new URLSearchParams(window.location.search).get('room');
-        let currentTheme = "#7F77DD";
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('room');
+        let currentIdx = 0;
 
-        function joinPoll() {
-            if(roomCode) socket.emit('join', {room: roomCode, type: 'voter'});
+        if (roomCode) {
+            socket.emit('join', { room: roomCode, type: 'voter' });
+        } else {
+            showError("No room code found.");
         }
 
-        socket.on('connect', joinPoll);
-        socket.on('poll_started', joinPoll);
-
-        socket.on('apply_theme', (d) => {
-            currentTheme = d.color;
-            document.getElementById('spinner').style.borderColor = d.color;
-            document.getElementById('spinner').style.borderTopColor = "transparent";
-        });
+        socket.on('error_message', (data) => showError(data.msg));
 
         socket.on('new_question', (data) => {
-            if(!data) { show('done'); return; }
-            show('poll');
-            document.getElementById('qText').innerText = data.text;
-            const grid = document.getElementById('btnGrid');
-            grid.innerHTML = "";
+            if (!data) {
+                showFinished();
+                return;
+            }
+            renderQuestion(data);
+        });
+
+        function renderQuestion(data) {
+            document.getElementById('status-container').classList.add('hidden');
+            document.getElementById('finished-container').classList.add('hidden');
+            document.getElementById('question-container').classList.remove('hidden');
+
+            document.getElementById('question-text').innerText = data.text;
+            currentIdx = data.index;
+
+            const grid = document.getElementById('options-grid');
+            grid.innerHTML = '';
+
             data.options.forEach(opt => {
                 const btn = document.createElement('button');
-                btn.className = "w-full py-4 rounded-2xl font-bold transition-all active:scale-95";
-                btn.style.backgroundColor = currentTheme;
-                btn.innerText = opt.label;
+                btn.className = "option-btn w-full bg-[#2A2A2A] hover:bg-[#3A3A3A] text-left p-5 rounded-2xl border border-transparent hover:border-[#7F77DD] transition-all font-medium";
+                
+                // THE FIX: host.html uses 'label', so we must use 'opt.label'
+                btn.innerText = opt.label || "Option";
+                
                 btn.onclick = () => {
-                    socket.emit('submit_vote', { room: roomCode, answer: opt.label, current_index: data.index, next_index: opt.next });
-                    show('wait');
-                    document.getElementById('status').innerText = "Submitting...";
+                    socket.emit('submit_vote', {
+                        room: roomCode,
+                        answer: opt.label, // Send the label to match Host's analytics
+                        current_index: currentIdx,
+                        next_index: opt.next
+                    });
+                    showLoading("Submitting your vote...");
                 };
                 grid.appendChild(btn);
             });
-        });
+        }
 
-        function show(id) {
-            ['wait', 'poll', 'done'].forEach(el => document.getElementById(el).classList.toggle('hidden', el !== id));
+        function showLoading(msg) {
+            document.getElementById('question-container').classList.add('hidden');
+            document.getElementById('status-container').classList.remove('hidden');
+            document.getElementById('status-message').innerText = msg;
+        }
+
+        function showError(msg) {
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('status-message').innerText = msg;
+            document.getElementById('status-message').classList.add('text-red-500');
+            setTimeout(() => { window.location.href = '/'; }, 3000);
+        }
+
+        function showFinished() {
+            document.getElementById('status-container').classList.add('hidden');
+            document.getElementById('question-container').classList.add('hidden');
+            document.getElementById('finished-container').classList.remove('hidden');
         }
     </script>
 </body>

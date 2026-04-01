@@ -2,35 +2,81 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>SmartPoll</title>
+    <title>SmartPoll | Create or Join</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = { theme: { extend: { colors: { primary: '#7F77DD', dark: '#0F0F0F', card: '#1A1A1A', border: '#2A2A2A' } } } }
+        tailwind.config = { 
+            theme: { 
+                extend: { 
+                    colors: { primary: '#7F77DD', dark: '#0F0F0F', card: '#1A1A1A', border: '#2A2A2A' } 
+                } 
+            } 
+        }
     </script>
 </head>
 <body class="bg-dark text-white min-h-screen flex flex-col">
     <nav class="border-b border-border px-8 py-4 flex justify-between">
-        <div class="text-xl font-bold">Smart<span class="text-primary">Poll</span></div>
+        <div class="text-xl font-bold italic">Smart<span class="text-primary">Poll</span></div>
     </nav>
+
     <main class="flex-1 flex flex-col items-center justify-center p-6 text-center">
         <h1 class="text-5xl font-bold mb-6">Live polling with <span class="text-primary">branching logic</span></h1>
+        
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
-            <div class="bg-card border border-border p-8 rounded-2xl hover:border-primary transition">
+            <div class="bg-card border border-border p-8 rounded-2xl hover:border-primary transition group">
                 <h2 class="text-xl font-bold mb-4">Host a Poll</h2>
-                <a href="/host" class="block bg-primary py-3 rounded-xl font-bold">Create Room →</a>
+                <p class="text-gray-400 text-sm mb-6">start your session.</p>
+                <button onclick="createRoom()" id="hostBtn" class="w-full bg-primary hover:bg-[#6b63c4] py-3 rounded-xl font-bold transition-all transform active:scale-95">
+                    Create Room →
+                </button>
             </div>
+
             <div class="bg-card border border-border p-8 rounded-2xl hover:border-primary transition">
                 <h2 class="text-xl font-bold mb-4">Join a Poll</h2>
-                <input type="text" id="joinCode" maxlength="6" placeholder="CODE" class="w-full bg-dark border border-border rounded-xl px-4 py-3 mb-3 text-center uppercase">
-                <button onclick="join()" class="w-full bg-white text-dark py-3 rounded-xl font-bold">Join Room</button>
+                <input type="text" id="joinCode" maxlength="6" placeholder="ENTER CODE" 
+                       class="w-full bg-dark border border-border rounded-xl px-4 py-3 mb-3 text-center uppercase focus:border-primary outline-none tracking-widest font-mono">
+                <button onclick="join()" class="w-full bg-white text-dark hover:bg-gray-200 py-3 rounded-xl font-bold transition-all transform active:scale-95">
+                    Join Room
+                </button>
             </div>
         </div>
     </main>
+
     <script>
+        // 1. Logic for Hosting (Talks to /create_room in app.py)
+        async function createRoom() {
+            const btn = document.getElementById('hostBtn');
+            btn.innerText = "Initializing...";
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/create_room', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.code) {
+                    // Redirect to host page with the generated code in the URL
+                    window.location.href = `/host?room=${data.code}`;
+                } else {
+                    throw new Error("No code received");
+                }
+            } catch (err) {
+                alert("Database Error: Could not create room. Is Flask running?");
+                btn.innerText = "Create Room →";
+                btn.disabled = false;
+            }
+        }
+
+        // 2. Logic for Joining
         function join() {
-            const code = document.getElementById('joinCode').value.trim().toUpperCase();
-            if(code.length === 6) window.location.href = `/vote?room=${code}`;
-            else alert("Enter 6-digit code");
+            const codeInput = document.getElementById('joinCode');
+            const code = codeInput.value.trim().toUpperCase();
+            
+            if(code.length === 6) {
+                window.location.href = `/vote?room=${code}`;
+            } else {
+                alert("Please enter a valid 6-digit room code.");
+                codeInput.focus();
+            }
         }
     </script>
 </body>
