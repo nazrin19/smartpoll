@@ -12,8 +12,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Tracks unique voter session IDs
 active_voters = {}
+
+# --- MODELS ---
 
 class Room(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -25,9 +26,29 @@ class Vote(db.Model):
     room_code = db.Column(db.String(6), nullable=False)
     answer = db.Column(db.String(100), nullable=False)
     question_index = db.Column(db.Integer)
+    voter_id = db.Column(db.String(100)) # Added to track WHO voted for WHAT
+
+class VoterRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    voter_id = db.Column(db.String(100), nullable=False)
+    room_code = db.Column(db.String(6), nullable=False)
+    question_index = db.Column(db.Integer, nullable=False)
 
 with app.app_context():
     db.create_all()
+
+# --- HELPER FUNCTION ---
+
+def generate_report(room_code):
+    all_votes = Vote.query.filter_by(room_code=room_code).all()
+    report = {}
+    for v in all_votes:
+        idx_str = str(v.question_index)
+        if idx_str not in report: report[idx_str] = {}
+        report[idx_str][v.answer] = report[idx_str].get(v.answer, 0) + 1
+    return report
+
+# --- ROUTES ---
 
 @app.route('/')
 def index(): return render_template('index.html')
@@ -37,6 +58,16 @@ def host(): return render_template('host.html')
 
 @app.route('/vote')
 def vote(): return render_template('vote.html')
+
+@app.route('/get_room_state/<room_code>')
+def get_room_state(room_code):
+    room = Room.query.filter_by(code=room_code).first()
+    if room:
+        return jsonify({
+            'questions': json.loads(room.questions_json),
+            'report': generate_report(room_code)
+        })
+    return jsonify({'status': 'error'}), 404
 
 @app.route('/create_room', methods=['POST'])
 def create_room():
@@ -58,6 +89,8 @@ def start_poll():
         return jsonify({'status': 'success'})
     return jsonify({'status': 'error'}), 404
 
+# --- SOCKET EVENTS ---
+
 @socketio.on('join')
 def on_join(data):
     room_code = data.get('room')
@@ -70,12 +103,14 @@ def on_join(data):
             if room_code not in active_voters: active_voters[room_code] = set()
             active_voters[room_code].add(request.sid)
             emit('user_count', {'count': len(active_voters[room_code])}, to=room_code)
+            
+            qs = json.loads(room_data.questions_json)
+            if len(qs) > 0:
+                emit('new_question', {**qs[0], 'index': 0}, room=request.sid)
         
-        qs = json.loads(room_data.questions_json)
-        if len(qs) > 0:
-            emit('new_question', {**qs[0], 'index': 0}, room=request.sid)
+        elif user_type == 'host':
+            emit('update_dashboard', generate_report(room_code), room=request.sid)
     else:
-        # Stop the loading spinner if code is wrong
         emit('error_message', {'msg': 'Invalid Room Code!'}, room=request.sid)
 
 @socketio.on('disconnect')
@@ -90,30 +125,36 @@ def handle_vote(data):
     room_code = data.get('room')
     q_idx = data.get('current_index')
     next_idx = data.get('next_index')
+    v_id = data.get('voter_id')
+    answer = data.get('answer')
+
+    # 1. DELETE EXISTING VOTE IF IT EXISTS (Update Logic)
+    # This ensures accuracy if a user refreshes or changes their mind
+    VoterRecord.query.filter_by(voter_id=v_id, room_code=room_code, question_index=q_idx).delete()
+    Vote.query.filter_by(voter_id=v_id, room_code=room_code, question_index=q_idx).delete()
     
-    # Save to SQLite
-    new_vote = Vote(room_code=room_code, answer=data.get('answer'), question_index=q_idx)
+    # 2. SAVE NEW VOTE
+    new_record = VoterRecord(voter_id=v_id, room_code=room_code, question_index=q_idx)
+    new_vote = Vote(room_code=room_code, answer=answer, question_index=q_idx, voter_id=v_id)
+    
+    db.session.add(new_record)
     db.session.add(new_vote)
     db.session.commit()
 
-    # Update Host Dashboard
-    all_votes = Vote.query.filter_by(room_code=room_code).all()
-    report = {}
-    for v in all_votes:
-        idx_str = str(v.question_index)
-        if idx_str not in report: report[idx_str] = {}
-        report[idx_str][v.answer] = report[idx_str].get(v.answer, 0) + 1
-    emit('update_dashboard', report, to=room_code)
+    # 3. UPDATE HOST
+    emit('update_dashboard', generate_report(room_code), to=room_code)
 
-    # BRANCHING LOGIC: Find what to show the voter next
+    # 4. SEND NEXT QUESTION
     room_data = Room.query.filter_by(code=room_code).first()
     if room_data:
         qs = json.loads(room_data.questions_json)
-        # If there is a valid next index, send the next question
-        if next_idx is not None and 0 <= int(next_idx) < len(qs):
-            emit('new_question', {**qs[int(next_idx)], 'index': int(next_idx)}, room=request.sid)
-        else:
-            # Tell the voter they are finished (None triggers the "Thank You" screen)
+        try:
+            target_idx = int(next_idx) if next_idx is not None else None
+            if target_idx is not None and 0 <= target_idx < len(qs):
+                emit('new_question', {**qs[target_idx], 'index': target_idx}, room=request.sid)
+            else:
+                emit('new_question', None, room=request.sid) # End of poll
+        except (ValueError, TypeError):
             emit('new_question', None, room=request.sid)
 
 if __name__ == '__main__':

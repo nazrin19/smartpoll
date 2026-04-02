@@ -40,6 +40,14 @@
         const roomCode = urlParams.get('room');
         let currentIdx = 0;
 
+        // --- NEW: VOTER IDENTITY LOGIC ---
+        // Check if this browser already has a unique ID, if not, create one.
+        let myVoterID = localStorage.getItem('smartpoll_voter_id');
+        if (!myVoterID) {
+            myVoterID = 'voter-' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('smartpoll_voter_id', myVoterID);
+        }
+
         if (roomCode) {
             socket.emit('join', { room: roomCode, type: 'voter' });
         } else {
@@ -47,6 +55,13 @@
         }
 
         socket.on('error_message', (data) => showError(data.msg));
+
+        // NEW: Listen for the "Already Voted" error from the server
+        socket.on('vote_error', (data) => {
+            alert(data.msg);
+            // We show the loading screen again or redirect them to keep things clean
+            showLoading("Checking your status...");
+        });
 
         socket.on('new_question', (data) => {
             if (!data) {
@@ -71,15 +86,16 @@
                 const btn = document.createElement('button');
                 btn.className = "option-btn w-full bg-[#2A2A2A] hover:bg-[#3A3A3A] text-left p-5 rounded-2xl border border-transparent hover:border-[#7F77DD] transition-all font-medium";
                 
-                // THE FIX: host.html uses 'label', so we must use 'opt.label'
                 btn.innerText = opt.label || "Option";
                 
                 btn.onclick = () => {
+                    // --- UPDATED: SENDING THE VOTER ID ---
                     socket.emit('submit_vote', {
                         room: roomCode,
-                        answer: opt.label, // Send the label to match Host's analytics
+                        answer: opt.label, 
                         current_index: currentIdx,
-                        next_index: opt.next
+                        next_index: opt.next,
+                        voter_id: myVoterID  // This matches the v_id in app.py
                     });
                     showLoading("Submitting your vote...");
                 };

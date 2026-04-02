@@ -9,8 +9,9 @@
 <body class="bg-[#0F0F0F] text-white p-6">
     <div class="max-w-6xl mx-auto">
         
-        <div class="mb-6">
-            <a href="/" class="text-gray-500 hover:text-[#7F77DD] text-sm font-bold flex items-center gap-2">← Exit to Home</a>
+        <div class="mb-6 flex justify-between items-center">
+            <a href="/" onclick="localStorage.removeItem('active_room_code')" class="text-gray-500 hover:text-[#7F77DD] text-sm font-bold flex items-center gap-2">← Exit to Home</a>
+            <button onclick="clearSession()" class="text-red-500 text-xs font-bold border border-red-500/30 px-3 py-1 rounded-lg hover:bg-red-500/10">Clear & New Room</button>
         </div>
 
         <div class="flex flex-col md:flex-row gap-4 mb-8">
@@ -43,8 +44,7 @@
             <h2 id="setupTitle" class="text-2xl font-bold mb-6 text-[#7F77DD]">1. Create Your Question</h2>
             <input type="text" id="qIn" placeholder="Enter Question" class="w-full bg-black border border-[#2A2A2A] p-4 rounded-xl mb-4 outline-none focus:border-[#7F77DD]">
             
-            <div id="optsList" class="space-y-3 mb-4">
-                </div>
+            <div id="optsList" class="space-y-3 mb-4"></div>
             
             <button onclick="addOpt()" class="text-[#7F77DD] text-sm font-bold mb-6">+ Add Option</button>
             
@@ -67,14 +67,47 @@
         let roomCode = "";
         let questions = [];
 
+        // 1. SMART RECONNECT LOGIC
         window.onload = async () => {
+            const savedRoom = localStorage.getItem('active_room_code');
+            
+            if (savedRoom) {
+                // Try to restore existing room
+                roomCode = savedRoom;
+                document.getElementById('roomDisp').innerText = roomCode;
+                socket.emit('join', {room: roomCode, type: 'host'});
+                
+                // Fetch the saved questions and votes from server
+                const res = await fetch(`/get_room_state/${roomCode}`);
+                const state = await res.json();
+                
+                if (state.questions && state.questions.length > 0) {
+                    questions = state.questions;
+                    showLiveDashboard();
+                    updateUI(state.report);
+                } else {
+                    addOpt(); addOpt(); // Room exists but no poll launched yet
+                }
+            } else {
+                // No saved room, create a new one
+                createNewRoom();
+            }
+        };
+
+        async function createNewRoom() {
             const res = await fetch('/create_room', {method:'POST'});
             const data = await res.json();
             roomCode = data.code;
+            localStorage.setItem('active_room_code', roomCode);
             document.getElementById('roomDisp').innerText = roomCode;
             socket.emit('join', {room: roomCode, type: 'host'});
-            addOpt(); addOpt(); // Start with 2 options
-        };
+            addOpt(); addOpt();
+        }
+
+        function clearSession() {
+            localStorage.removeItem('active_room_code');
+            window.location.reload();
+        }
 
         function copyVoteLink() {
             const link = `${window.location.origin}/vote?room=${roomCode}`;
@@ -105,16 +138,12 @@
             }
 
             questions.push({text, options: opts});
-            
-            // Reset UI for next question
             document.getElementById('qIn').value = "";
             document.getElementById('optsList').innerHTML = ""; 
             addOpt(); addOpt();
             document.getElementById('setupTitle').innerText = `${questions.length + 1}. Create Your Question`;
-            
             renderQueue();
             
-            // Enable Launch Button
             const startBtn = document.getElementById('startBtn');
             startBtn.disabled = false;
             startBtn.classList.remove('opacity-30', 'cursor-not-allowed');
@@ -132,7 +161,10 @@
                 headers:{'Content-Type':'application/json'}, 
                 body: JSON.stringify({code: roomCode, questions}) 
             });
+            showLiveDashboard();
+        }
 
+        function showLiveDashboard() {
             document.getElementById('setup').classList.add('hidden');
             document.getElementById('live').classList.remove('hidden');
             
@@ -156,7 +188,10 @@
 
         socket.on('user_count', (d) => document.getElementById('participantCount').innerText = d.count);
         
-        socket.on('update_dashboard', (report) => {
+        socket.on('update_dashboard', (report) => updateUI(report));
+
+        function updateUI(report) {
+            if (!report) return;
             for(let qIdx in report) {
                 const qVotes = report[qIdx];
                 const total = Object.values(qVotes).reduce((a,b)=>a+b, 0);
@@ -164,13 +199,13 @@
                     const count = qVotes[label];
                     const bar = document.getElementById(`bar-${qIdx}-${label}`);
                     const val = document.getElementById(`val-${qIdx}-${label}`);
-                    if(bar) { 
+                    if(bar && val) { 
                         bar.style.width = (count/total * 100) + "%"; 
                         val.innerText = count + " votes"; 
                     }
                 }
             }
-        });
+        }
     </script>
 </body>
 </html>
