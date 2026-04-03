@@ -12,6 +12,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+# In-memory track of active socket connections for the user counter
 active_voters = {}
 
 # --- MODELS ---
@@ -26,7 +27,7 @@ class Vote(db.Model):
     room_code = db.Column(db.String(6), nullable=False)
     answer = db.Column(db.String(100), nullable=False)
     question_index = db.Column(db.Integer)
-    voter_id = db.Column(db.String(100)) # Added to track WHO voted for WHAT
+    voter_id = db.Column(db.String(100)) # Crucial for identifying which vote to update
 
 class VoterRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -40,24 +41,29 @@ with app.app_context():
 # --- HELPER FUNCTION ---
 
 def generate_report(room_code):
+    """Queries the database for a fresh count of all votes in a room."""
     all_votes = Vote.query.filter_by(room_code=room_code).all()
     report = {}
     for v in all_votes:
         idx_str = str(v.question_index)
-        if idx_str not in report: report[idx_str] = {}
+        if idx_str not in report:
+            report[idx_str] = {}
         report[idx_str][v.answer] = report[idx_str].get(v.answer, 0) + 1
     return report
 
 # --- ROUTES ---
 
 @app.route('/')
-def index(): return render_template('index.html')
+def index():
+    return render_template('index.html')
 
 @app.route('/host')
-def host(): return render_template('host.html')
+def host():
+    return render_template('host.html')
 
 @app.route('/vote')
-def vote(): return render_template('vote.html')
+def vote():
+    return render_template('vote.html')
 
 @app.route('/get_room_state/<room_code>')
 def get_room_state(room_code):
@@ -100,15 +106,20 @@ def on_join(data):
     if room_data:
         join_room(room_code)
         if user_type == 'voter':
-            if room_code not in active_voters: active_voters[room_code] = set()
+            if room_code not in active_voters:
+                active_voters[room_code] = set()
             active_voters[room_code].add(request.sid)
+            
+            # Update user count for everyone in the room
             emit('user_count', {'count': len(active_voters[room_code])}, to=room_code)
             
+            # IMPORTANT: Automatically send the first question so the UI populates
             qs = json.loads(room_data.questions_json)
             if len(qs) > 0:
                 emit('new_question', {**qs[0], 'index': 0}, room=request.sid)
         
         elif user_type == 'host':
+            # Send current results to host immediately upon joining or refreshing
             emit('update_dashboard', generate_report(room_code), room=request.sid)
     else:
         emit('error_message', {'msg': 'Invalid Room Code!'}, room=request.sid)
@@ -128,12 +139,11 @@ def handle_vote(data):
     v_id = data.get('voter_id')
     answer = data.get('answer')
 
-    # 1. DELETE EXISTING VOTE IF IT EXISTS (Update Logic)
-    # This ensures accuracy if a user refreshes or changes their mind
+    # 1. DELETE EXISTING ENTRIES (Clean up old data for this specific user/question)
     VoterRecord.query.filter_by(voter_id=v_id, room_code=room_code, question_index=q_idx).delete()
     Vote.query.filter_by(voter_id=v_id, room_code=room_code, question_index=q_idx).delete()
     
-    # 2. SAVE NEW VOTE
+    # 2. SAVE THE NEW VOTE
     new_record = VoterRecord(voter_id=v_id, room_code=room_code, question_index=q_idx)
     new_vote = Vote(room_code=room_code, answer=answer, question_index=q_idx, voter_id=v_id)
     
@@ -141,10 +151,10 @@ def handle_vote(data):
     db.session.add(new_vote)
     db.session.commit()
 
-    # 3. UPDATE HOST
+    # 3. PUSH UPDATED TOTALS TO HOST
     emit('update_dashboard', generate_report(room_code), to=room_code)
 
-    # 4. SEND NEXT QUESTION
+    # 4. ADVANCE VOTER TO NEXT QUESTION
     room_data = Room.query.filter_by(code=room_code).first()
     if room_data:
         qs = json.loads(room_data.questions_json)
@@ -153,7 +163,7 @@ def handle_vote(data):
             if target_idx is not None and 0 <= target_idx < len(qs):
                 emit('new_question', {**qs[target_idx], 'index': target_idx}, room=request.sid)
             else:
-                emit('new_question', None, room=request.sid) # End of poll
+                emit('new_question', None, room=request.sid) # Signal that poll is finished
         except (ValueError, TypeError):
             emit('new_question', None, room=request.sid)
 
