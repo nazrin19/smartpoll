@@ -9,6 +9,23 @@
 <body class="bg-[#0F0F0F] text-white p-6">
     <div class="max-w-6xl mx-auto">
         
+        <div class="mb-8 flex justify-between items-center bg-[#1A1A1A] p-4 rounded-2xl border border-[#2A2A2A]">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#7F77DD] rounded-full flex items-center justify-center font-bold text-white uppercase">
+                    {{ current_user.username[0] }}
+                </div>
+                <div>
+                    <p class="text-gray-500 text-[10px] uppercase font-bold tracking-widest">Logged in as</p>
+                    <p class="font-bold text-gray-200">{{ current_user.username }}</p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <a href="/logout" class="text-xs font-bold bg-red-500/10 text-red-500 border border-red-500/30 px-4 py-2 rounded-xl hover:bg-red-500 hover:text-white transition-all">
+                    Logout
+                </a>
+            </div>
+        </div>
+
         <div class="mb-6 flex justify-between items-center">
             <a href="/" onclick="localStorage.removeItem('active_room_code')" class="text-gray-500 hover:text-[#7F77DD] text-sm font-bold flex items-center gap-2">← Exit to Home</a>
             <button onclick="clearSession()" class="text-red-500 text-xs font-bold border border-red-500/30 px-3 py-1 rounded-lg hover:bg-red-500/10">Clear & New Room</button>
@@ -67,41 +84,66 @@
         let roomCode = "";
         let questions = [];
 
-        // 1. SMART RECONNECT LOGIC
         window.onload = async () => {
             const savedRoom = localStorage.getItem('active_room_code');
             
             if (savedRoom) {
-                // Try to restore existing room
                 roomCode = savedRoom;
                 document.getElementById('roomDisp').innerText = roomCode;
                 socket.emit('join', {room: roomCode, type: 'host'});
                 
-                // Fetch the saved questions and votes from server
-                const res = await fetch(`/get_room_state/${roomCode}`);
-                const state = await res.json();
-                
-                if (state.questions && state.questions.length > 0) {
-                    questions = state.questions;
-                    showLiveDashboard();
-                    updateUI(state.report);
-                } else {
-                    addOpt(); addOpt(); // Room exists but no poll launched yet
+                try {
+                    const res = await fetch(`/get_room_state/${roomCode}`);
+                    
+                    // Handling Unauthorized or Not Found
+                    if (res.status === 401) {
+                        window.location.href = '/login';
+                        return;
+                    }
+                    if (res.status === 404 || res.status === 403) {
+                        clearSession();
+                        return;
+                    }
+
+                    const state = await res.json();
+                    if (state.questions && state.questions.length > 0) {
+                        questions = state.questions;
+                        showLiveDashboard();
+                        updateUI(state.report);
+                    } else {
+                        addOpt(); addOpt();
+                    }
+                } catch (e) {
+                    console.error("Session restore failed:", e);
                 }
             } else {
-                // No saved room, create a new one
                 createNewRoom();
             }
         };
 
         async function createNewRoom() {
-            const res = await fetch('/create_room', {method:'POST'});
-            const data = await res.json();
-            roomCode = data.code;
-            localStorage.setItem('active_room_code', roomCode);
-            document.getElementById('roomDisp').innerText = roomCode;
-            socket.emit('join', {room: roomCode, type: 'host'});
-            addOpt(); addOpt();
+            try {
+                const res = await fetch('/create_room', {method:'POST'});
+                
+                // If user isn't logged in, redirect to login page
+                if (res.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                if (!res.ok) throw new Error("Server error");
+
+                const data = await res.json();
+                roomCode = data.code;
+                localStorage.setItem('active_room_code', roomCode);
+                document.getElementById('roomDisp').innerText = roomCode;
+                socket.emit('join', {room: roomCode, type: 'host'});
+                addOpt(); addOpt();
+            } catch (err) {
+                console.error("Room creation error:", err);
+                // Only alert if it's a real error, not a 401 redirect
+                alert("Critical Error: Could not reach the server.");
+            }
         }
 
         function clearSession() {
@@ -187,7 +229,6 @@
         }
 
         socket.on('user_count', (d) => document.getElementById('participantCount').innerText = d.count);
-        
         socket.on('update_dashboard', (report) => updateUI(report));
 
         function updateUI(report) {
