@@ -5,6 +5,10 @@
     <title>SmartPoll Host — Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
 </head>
 <body class="bg-[#0F0F0F] text-white p-6">
     <div class="max-w-6xl mx-auto">
@@ -57,24 +61,29 @@
             </div>
         </div>
 
-        <div id="setup" class="bg-[#1A1A1A] p-8 rounded-3xl border border-[#2A2A2A]">
+        <div id="setup" class="bg-[#1A1A1A] p-8 rounded-3xl border border-[#2A2A2A] fade-in">
             <h2 id="setupTitle" class="text-2xl font-bold mb-6 text-[#7F77DD]">1. Create Your Question</h2>
-            <input type="text" id="qIn" placeholder="Enter Question" class="w-full bg-black border border-[#2A2A2A] p-4 rounded-xl mb-4 outline-none focus:border-[#7F77DD]">
+            <input type="text" id="qIn" placeholder="Enter Question (e.g. Do you like coffee?)" class="w-full bg-black border border-[#2A2A2A] p-4 rounded-xl mb-4 outline-none focus:border-[#7F77DD] text-lg">
             
-            <div id="optsList" class="space-y-3 mb-4"></div>
+            <p class="text-[10px] text-gray-500 mb-2 uppercase font-bold">Options & Branching</p>
+            <div id="optsList" class="space-y-3 mb-4">
+                </div>
             
-            <button onclick="addOpt()" class="text-[#7F77DD] text-sm font-bold mb-6">+ Add Option</button>
+            <button onclick="addOpt()" class="text-[#7F77DD] text-sm font-bold mb-6 hover:underline hover:opacity-80 transition-all">+ Add Option</button>
             
             <div class="flex gap-4 pt-6 border-t border-[#2A2A2A]">
-                <button onclick="saveQ()" class="flex-1 bg-[#2A2A2A] py-4 rounded-xl font-bold border border-[#333] hover:bg-[#333]">Save Question</button>
-                <button onclick="start()" id="startBtn" disabled class="flex-1 bg-[#7F77DD] py-4 rounded-xl font-bold opacity-30 cursor-not-allowed transition-all">Launch Poll</button>
+                <button onclick="saveQ()" class="flex-1 bg-[#2A2A2A] py-4 rounded-xl font-bold border border-[#333] hover:bg-[#333] transition-all">Save Question</button>
+                <button onclick="start()" id="startBtn" disabled class="flex-1 bg-[#7F77DD] py-4 rounded-xl font-bold opacity-30 cursor-not-allowed transition-all shadow-lg shadow-[#7F77DD]/20">Launch Poll</button>
             </div>
             
             <div id="qQueue" class="mt-8 flex gap-2 flex-wrap"></div>
         </div>
 
-        <div id="live" class="hidden">
-            <h2 class="text-3xl font-black italic mb-8">Live Analytics</h2>
+        <div id="live" class="hidden fade-in">
+            <div class="flex justify-between items-end mb-8">
+                <h2 class="text-3xl font-black italic">Live Analytics</h2>
+                <span class="text-[#7F77DD] text-xs font-bold bg-[#7F77DD]/10 px-3 py-1 rounded-full border border-[#7F77DD]/20">Receiving Live Votes</span>
+            </div>
             <div id="dashboardGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         </div>
     </div>
@@ -94,16 +103,8 @@
                 
                 try {
                     const res = await fetch(`/get_room_state/${roomCode}`);
-                    
-                    // Handling Unauthorized or Not Found
-                    if (res.status === 401) {
-                        window.location.href = '/login';
-                        return;
-                    }
-                    if (res.status === 404 || res.status === 403) {
-                        clearSession();
-                        return;
-                    }
+                    if (res.status === 401) { window.location.href = '/login'; return; }
+                    if (res.status === 404 || res.status === 403) { clearSession(); return; }
 
                     const state = await res.json();
                     if (state.questions && state.questions.length > 0) {
@@ -124,15 +125,7 @@
         async function createNewRoom() {
             try {
                 const res = await fetch('/create_room', {method:'POST'});
-                
-                // If user isn't logged in, redirect to login page
-                if (res.status === 401) {
-                    window.location.href = '/login';
-                    return;
-                }
-
-                if (!res.ok) throw new Error("Server error");
-
+                if (res.status === 401) { window.location.href = '/login'; return; }
                 const data = await res.json();
                 roomCode = data.code;
                 localStorage.setItem('active_room_code', roomCode);
@@ -140,8 +133,6 @@
                 socket.emit('join', {room: roomCode, type: 'host'});
                 addOpt(); addOpt();
             } catch (err) {
-                console.error("Room creation error:", err);
-                // Only alert if it's a real error, not a 401 redirect
                 alert("Critical Error: Could not reach the server.");
             }
         }
@@ -154,25 +145,29 @@
         function copyVoteLink() {
             const link = `${window.location.origin}/vote?room=${roomCode}`;
             navigator.clipboard.writeText(link);
-            alert("Voter link copied!");
+            alert("Voter link copied to clipboard!");
         }
 
         function addOpt() {
             const div = document.createElement('div');
-            div.className = "flex gap-2";
+            div.className = "flex gap-2 fade-in";
             div.innerHTML = `
                 <input type="text" placeholder="Option Text" class="opt-text flex-1 bg-black border border-[#2A2A2A] p-3 rounded-xl outline-none focus:border-[#7F77DD]">
-                <input type="number" placeholder="→ Q#" class="opt-next w-16 bg-black border border-[#2A2A2A] rounded-xl text-center outline-none focus:border-[#7F77DD]">
+                <input type="number" placeholder="→ Q#" title="Leave empty for next question, or enter Q number to jump" class="opt-next w-20 bg-black border border-[#2A2A2A] rounded-xl text-center outline-none focus:border-[#7F77DD]">
             `;
             document.getElementById('optsList').appendChild(div);
         }
 
         function saveQ() {
             const text = document.getElementById('qIn').value.trim();
-            const opts = Array.from(document.querySelectorAll('#optsList > div')).map(el => ({
-                label: el.querySelector('.opt-text').value.trim(),
-                next: el.querySelector('.opt-next').value ? parseInt(el.querySelector('.opt-next').value) - 1 : null
-            })).filter(o => o.label !== "");
+            const opts = Array.from(document.querySelectorAll('#optsList > div')).map(el => {
+                const nextVal = el.querySelector('.opt-next').value;
+                return {
+                    label: el.querySelector('.opt-text').value.trim(),
+                    // BRANCHING LOGIC: If input exists, save as index (Input - 1). Else null.
+                    next: (nextVal !== "" && nextVal !== null) ? parseInt(nextVal) - 1 : null
+                };
+            }).filter(o => o.label !== "");
             
             if(!text || opts.length < 2) {
                 alert("Please enter a question and at least 2 options.");
@@ -193,7 +188,7 @@
 
         function renderQueue() {
             document.getElementById('qQueue').innerHTML = questions.map((q, i) => 
-                `<div class="bg-black px-3 py-1 rounded-full border border-[#7F77DD] text-[10px]">Q${i+1} Saved</div>`
+                `<div class="bg-black px-3 py-1 rounded-full border border-[#7F77DD] text-[10px] text-[#7F77DD]">Q${i+1} Saved</div>`
             ).join('');
         }
 
@@ -211,14 +206,14 @@
             document.getElementById('live').classList.remove('hidden');
             
             document.getElementById('dashboardGrid').innerHTML = questions.map((q, i) => `
-                <div class="bg-[#1A1A1A] p-6 rounded-3xl border border-[#2A2A2A] shadow-lg">
+                <div class="bg-[#1A1A1A] p-6 rounded-3xl border border-[#2A2A2A] shadow-lg fade-in">
                     <h3 class="font-bold mb-4 text-sm text-gray-300">Q${i+1}: ${q.text}</h3>
                     <div class="space-y-4">
                         ${q.options.map(o => `
                             <div>
                                 <div class="flex justify-between text-[10px] mb-1 font-bold">
-                                    <span>${o.label}</span> 
-                                    <span id="val-${i}-${o.label}" class="text-gray-500 text-[9px]">0 votes</span>
+                                    <span class="text-gray-400">${o.label}</span> 
+                                    <span id="val-${i}-${o.label}" class="text-[#7F77DD] text-[9px]">0 votes</span>
                                 </div>
                                 <div class="w-full bg-black h-1.5 rounded-full overflow-hidden">
                                     <div id="bar-${i}-${o.label}" class="h-full transition-all duration-700" style="width: 0%; background: #7F77DD"></div>

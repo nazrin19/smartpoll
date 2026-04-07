@@ -6,7 +6,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        .option-btn:active { transform: scale(0.98); }
+        .option-btn:active { transform: scale(0.96); }
+        .gradient-text {
+            background: linear-gradient(90deg, #7F77DD, #a59ef1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
     </style>
 </head>
 <body class="bg-[#0F0F0F] text-white min-h-screen flex flex-col items-center justify-center p-6">
@@ -15,22 +20,31 @@
         
         <div id="status-container" class="text-center">
             <div id="loader" class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#7F77DD] mx-auto mb-4"></div>
-            <h2 id="status-message" class="text-xl font-medium text-gray-400">Connecting to room...</h2>
+            <h2 id="status-message" class="text-xl font-medium text-gray-400 tracking-tight">Connecting to room...</h2>
         </div>
 
         <div id="question-container" class="hidden">
-            <div class="bg-[#1A1A1A] border border-[#2A2A2A] rounded-3xl p-8 shadow-2xl">
-                <span class="text-[#7F77DD] text-xs font-bold uppercase tracking-widest">Question</span>
+            <div class="bg-[#1A1A1A] border border-[#2A2A2A] rounded-3xl p-8 shadow-2xl transition-all duration-300">
+                <div class="flex justify-between items-center mb-6">
+                    <span class="text-[#7F77DD] text-xs font-bold uppercase tracking-[0.2em]">Live Poll</span>
+                    <span id="q-number" class="text-gray-600 text-xs font-mono"></span>
+                </div>
+                
                 <h1 id="question-text" class="text-2xl font-bold mt-2 mb-8 leading-tight">---</h1>
-                <div id="options-grid" class="grid grid-cols-1 gap-4"></div>
+                
+                <div id="options-grid" class="grid grid-cols-1 gap-4">
+                    </div>
             </div>
         </div>
 
-        <div id="finished-container" class="hidden text-center">
-            <div class="text-6xl mb-6">🎉</div>
-            <h1 class="text-3xl font-bold mb-2">Thank You!</h1>
-            <p class="text-gray-500">Your responses have been saved.</p>
-            <button onclick="window.location.href='/'" class="mt-8 text-[#7F77DD] font-bold">← Back Home</button>
+        <div id="finished-container" class="hidden text-center scale-in">
+            <div class="text-6xl mb-6">✨</div>
+            <h1 class="text-3xl font-bold mb-2">Poll Complete</h1>
+            <p class="text-gray-500 max-w-xs mx-auto">Your responses have been recorded. Thank you for participating!</p>
+            <button onclick="window.location.href='/'" 
+                    class="mt-10 px-8 py-3 bg-[#1A1A1A] border border-[#2A2A2A] rounded-full text-[#7F77DD] font-bold hover:bg-[#252525] transition-all">
+                ← Back Home
+            </button>
         </div>
     </div>
 
@@ -40,8 +54,7 @@
         const roomCode = urlParams.get('room');
         let currentIdx = 0;
 
-        // --- NEW: VOTER IDENTITY LOGIC ---
-        // Check if this browser already has a unique ID, if not, create one.
+        // Persistent Voter ID
         let myVoterID = localStorage.getItem('smartpoll_voter_id');
         if (!myVoterID) {
             myVoterID = 'voter-' + Math.random().toString(36).substr(2, 9);
@@ -51,17 +64,12 @@
         if (roomCode) {
             socket.emit('join', { room: roomCode, type: 'voter' });
         } else {
-            showError("No room code found.");
+            showError("Missing room code.");
         }
 
-        socket.on('error_message', (data) => showError(data.msg));
+        // --- SOCKET EVENT HANDLERS ---
 
-        // NEW: Listen for the "Already Voted" error from the server
-        socket.on('vote_error', (data) => {
-            alert(data.msg);
-            // We show the loading screen again or redirect them to keep things clean
-            showLoading("Checking your status...");
-        });
+        socket.on('error_message', (data) => showError(data.msg));
 
         socket.on('new_question', (data) => {
             if (!data) {
@@ -71,12 +79,17 @@
             renderQuestion(data);
         });
 
+        // --- UI FUNCTIONS ---
+
         function renderQuestion(data) {
+            // UI Cleanup
             document.getElementById('status-container').classList.add('hidden');
             document.getElementById('finished-container').classList.add('hidden');
             document.getElementById('question-container').classList.remove('hidden');
 
+            // Set content
             document.getElementById('question-text').innerText = data.text;
+            document.getElementById('q-number').innerText = `ID: ${data.index}`;
             currentIdx = data.index;
 
             const grid = document.getElementById('options-grid');
@@ -84,20 +97,34 @@
 
             data.options.forEach(opt => {
                 const btn = document.createElement('button');
-                btn.className = "option-btn w-full bg-[#2A2A2A] hover:bg-[#3A3A3A] text-left p-5 rounded-2xl border border-transparent hover:border-[#7F77DD] transition-all font-medium";
+                btn.className = "option-btn w-full bg-[#242424] hover:bg-[#2A2A2A] text-left p-5 rounded-2xl border border-[#333] hover:border-[#7F77DD] transition-all duration-200 group flex justify-between items-center";
                 
-                btn.innerText = opt.label || "Option";
+                btn.innerHTML = `
+                    <span class="font-medium group-hover:text-white text-gray-300">${opt.label || "Option"}</span>
+                    <svg class="w-5 h-5 text-gray-700 group-hover:text-[#7F77DD] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                `;
                 
                 btn.onclick = () => {
-                    // --- UPDATED: SENDING THE VOTER ID ---
+                    // Prepare the target index
+                    let nextTarget = opt.next;
+                    
+                    // Logic: If next is a number, pass it. If null/empty, pass null.
+                    // The server will handle the +1 fallback safely.
+                    if (nextTarget !== null && nextTarget !== undefined && nextTarget !== "") {
+                        nextTarget = parseInt(nextTarget);
+                    } else {
+                        nextTarget = null;
+                    }
+
                     socket.emit('submit_vote', {
                         room: roomCode,
                         answer: opt.label, 
                         current_index: currentIdx,
-                        next_index: opt.next,
-                        voter_id: myVoterID  // This matches the v_id in app.py
+                        next_index: nextTarget,
+                        voter_id: myVoterID
                     });
-                    showLoading("Submitting your vote...");
+                    
+                    showLoading("Sending response...");
                 };
                 grid.appendChild(btn);
             });
@@ -106,14 +133,16 @@
         function showLoading(msg) {
             document.getElementById('question-container').classList.add('hidden');
             document.getElementById('status-container').classList.remove('hidden');
+            document.getElementById('loader').classList.remove('hidden');
             document.getElementById('status-message').innerText = msg;
+            document.getElementById('status-message').classList.remove('text-red-500');
         }
 
         function showError(msg) {
             document.getElementById('loader').classList.add('hidden');
             document.getElementById('status-message').innerText = msg;
             document.getElementById('status-message').classList.add('text-red-500');
-            setTimeout(() => { window.location.href = '/'; }, 3000);
+            setTimeout(() => { window.location.href = '/'; }, 3500);
         }
 
         function showFinished() {

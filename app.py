@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_socketio import SocketIO, emit, join_room
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -53,8 +53,7 @@ class VoterRecord(db.Model):
 with app.app_context():
     db.create_all()
 
-# --- GLOBALS ---
-active_voters = {} # room_code -> set of SIDs
+active_voters = {} 
 
 # --- HELPERS ---
 
@@ -85,10 +84,13 @@ def register():
         username = request.form.get('username')
         password = request.form.get('password')
         if User.query.filter_by(username=username).first():
-            return "User exists", 400
+            flash('Username already exists!', 'error')
+            return redirect(url_for('register'))
+        
         hashed = generate_password_hash(password, method='pbkdf2:sha256')
         db.session.add(User(username=username, password_hash=hashed))
         db.session.commit()
+        flash('Registration successful! Please login.', 'success')
         return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -99,6 +101,9 @@ def login():
         if user and check_password_hash(user.password_hash, request.form.get('password')):
             login_user(user)
             return redirect(url_for('host'))
+        else:
+            flash('Invalid username or password.', 'error')
+            return redirect(url_for('login'))
     return render_template('login.html')
 
 @app.route('/logout')
@@ -107,11 +112,10 @@ def logout():
     return redirect(url_for('index'))
 
 @app.route('/get_room_state/<room_code>')
-@login_required # Only logged in users can ask for room states
+@login_required 
 def get_room_state(room_code):
-    room = Room.query.filter_by(code=room_code).first()
-    # SECURITY: Check if the logged-in user actually owns this room
-    if room and room.user_id == current_user.id:
+    room = Room.query.filter_by(code=room_code, user_id=current_user.id).first()
+    if room:
         return jsonify({
             'questions': json.loads(room.questions_json),
             'report': generate_report(room_code)
@@ -168,23 +172,51 @@ def on_disconnect():
 
 @socketio.on('submit_vote')
 def handle_vote(data):
-    room_code, q_idx, v_id, answer = data.get('room'), data.get('current_index'), data.get('voter_id'), data.get('answer')
-    VoterRecord.query.filter_by(voter_id=v_id, room_code=room_code, question_index=q_idx).delete()
-    Vote.query.filter_by(voter_id=v_id, room_code=room_code, question_index=q_idx).delete()
-    db.session.add(VoterRecord(voter_id=v_id, room_code=room_code, question_index=q_idx))
-    db.session.add(Vote(room_code=room_code, answer=answer, question_index=q_idx, voter_id=v_id))
-    db.session.commit()
-    emit('update_dashboard', generate_report(room_code), to=room_code)
+    room_code = data.get('room')
+    v_id = data.get('voter_id')
+    answer = data.get('answer')
     
+    # Safely convert current_index to int
+    try:
+        q_idx = int(data.get('current_index', 0))
+    except:
+        q_idx = 0
+
+    # 1. Prevent Duplicates
+    existing = VoterRecord.query.filter_by(voter_id=v_id, room_code=room_code, question_index=q_idx).first()
+    
+    if not existing:
+        db.session.add(VoterRecord(voter_id=v_id, room_code=room_code, question_index=q_idx))
+        db.session.add(Vote(room_code=room_code, answer=answer, question_index=q_idx, voter_id=v_id))
+        db.session.commit()
+        # Update the host's real-time charts
+        emit('update_dashboard', generate_report(room_code), to=room_code)
+    
+    # 2. CALCULATE NEXT QUESTION (Branching Logic)
     room_data = Room.query.filter_by(code=room_code).first()
     if room_data:
         qs = json.loads(room_data.questions_json)
         try:
-            next_idx = int(data.get('next_index'))
+            raw_next = data.get('next_index')
+            
+            # --- PRIORITY BRANCHING ---
+            # If the voter chose an option with a specific branch (next_index), use it.
+            # Otherwise, if it's empty/null, move to the next question index (q_idx + 1).
+            if raw_next is not None and str(raw_next).strip() != "":
+                next_idx = int(raw_next)
+            else:
+                next_idx = q_idx + 1
+
+            # Check if this index exists in our questions array
             if 0 <= next_idx < len(qs):
                 emit('new_question', {**qs[next_idx], 'index': next_idx}, room=request.sid)
-            else: emit('new_question', None, room=request.sid)
-        except: emit('new_question', None, room=request.sid)
+            else: 
+                # If the index is out of range, the user has finished the poll
+                emit('new_question', None, room=request.sid)
+
+        except Exception as e:
+            print(f"Branching Error: {e}")
+            emit('new_question', None, room=request.sid)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
