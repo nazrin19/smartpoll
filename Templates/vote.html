@@ -2,59 +2,100 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>SmartPoll - Vote</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartPoll | Vote Live</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        tailwind.config = { 
+            theme: { 
+                extend: { 
+                    colors: { 
+                        royal: '#4F46E5', 
+                        royalDeep: '#3730A3',
+                        pageBg: '#F5F7FF'
+                    } 
+                } 
+            } 
+        }
+    </script>
     <style>
-        .option-btn:active { transform: scale(0.96); }
-        .gradient-text {
-            background: linear-gradient(90deg, #7F77DD, #a59ef1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .header-gradient {
+            background: linear-gradient(135deg, #3730A3 0%, #4F46E5 100%);
+            height: 240px;
+            border-bottom-left-radius: 40px;
+            border-bottom-right-radius: 40px;
+        }
+        .option-btn:active { transform: scale(0.98); }
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(10px); } 
+            to { opacity: 1; transform: translateY(0); } 
         }
     </style>
 </head>
-<body class="bg-[#0F0F0F] text-white min-h-screen flex flex-col items-center justify-center p-6">
+<body class="bg-pageBg text-slate-900 min-h-screen flex flex-col font-sans selection:bg-royal/10">
 
-    <div id="app-container" class="w-full max-w-xl">
-        
-        <div id="status-container" class="text-center">
-            <div id="loader" class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#7F77DD] mx-auto mb-4"></div>
-            <h2 id="status-message" class="text-xl font-medium text-gray-400 tracking-tight">Connecting to room...</h2>
+    <div class="fixed top-0 left-0 w-full header-gradient -z-10 shadow-lg"></div>
+
+    <nav class="px-8 py-6 flex justify-center items-center z-50">
+        <div class="text-lg font-black tracking-tighter text-white">
+            Smart<span class="opacity-60">Poll</span>
         </div>
+    </nav>
 
-        <div id="question-container" class="hidden">
-            <div class="bg-[#1A1A1A] border border-[#2A2A2A] rounded-3xl p-8 shadow-2xl transition-all duration-300">
-                <div class="flex justify-between items-center mb-6">
-                    <span class="text-[#7F77DD] text-xs font-bold uppercase tracking-[0.2em]">Live Poll</span>
-                    <span id="q-number" class="text-gray-600 text-xs font-mono"></span>
-                </div>
-                
-                <h1 id="question-text" class="text-2xl font-bold mt-2 mb-8 leading-tight">---</h1>
-                
-                <div id="options-grid" class="grid grid-cols-1 gap-4">
+    <main class="flex-1 flex flex-col items-center justify-start p-6">
+        <div id="app-container" class="w-full max-w-md mt-4">
+            
+            <div id="status-container" class="text-center fade-in bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100">
+                <div id="loader" class="animate-spin rounded-full h-12 w-12 border-t-4 border-royal border-r-transparent mx-auto mb-6"></div>
+                <h2 id="status-message" class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Syncing Session...</h2>
+            </div>
+
+            <div id="question-container" class="hidden fade-in">
+                <div class="bg-white rounded-[2.5rem] p-8 shadow-2xl border border-slate-100">
+                    <div class="flex justify-between items-center mb-8">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                            <span class="text-slate-400 text-[10px] font-black uppercase tracking-widest">Live Poll</span>
+                        </div>
+                        <span id="q-number" class="text-royal text-[10px] font-black uppercase tracking-widest bg-royal/5 px-4 py-1.5 rounded-full border border-royal/10">Question 1</span>
                     </div>
+                    
+                    <h1 id="question-text" class="text-2xl font-black mb-8 leading-tight text-slate-800 tracking-tight">---</h1>
+                    
+                    <div id="options-grid" class="grid grid-cols-1 gap-3">
+                        </div>
+                </div>
+            </div>
+
+            <div id="finished-container" class="hidden text-center fade-in bg-white p-12 rounded-[2.5rem] shadow-2xl border border-slate-100">
+                <div class="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-emerald-100">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </div>
+                <h1 class="text-2xl font-black text-slate-800 mb-2 tracking-tight">Poll Complete!</h1>
+                <p class="text-slate-400 text-sm mb-8 font-medium">Your response has been recorded.</p>
+                <button onclick="window.location.href='/'" 
+                        class="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-black transition-all shadow-lg">
+                    Return Home
+                </button>
             </div>
         </div>
+    </main>
 
-        <div id="finished-container" class="hidden text-center scale-in">
-            <div class="text-6xl mb-6">✨</div>
-            <h1 class="text-3xl font-bold mb-2">Poll Complete</h1>
-            <p class="text-gray-500 max-w-xs mx-auto">Your responses have been recorded. Thank you for participating!</p>
-            <button onclick="window.location.href='/'" 
-                    class="mt-10 px-8 py-3 bg-[#1A1A1A] border border-[#2A2A2A] rounded-full text-[#7F77DD] font-bold hover:bg-[#252525] transition-all">
-                ← Back Home
-            </button>
-        </div>
-    </div>
+    <footer class="py-8 text-center">
+        <p class="text-slate-400 text-[9px] font-black tracking-[0.3em] uppercase opacity-50">
+            Secure Voting Portal &bull; 2026
+        </p>
+    </footer>
 
     <script>
         const socket = io();
         const urlParams = new URLSearchParams(window.location.search);
         const roomCode = urlParams.get('room');
         let currentIdx = 0;
+        let isSubmitting = false; 
 
-        // Persistent Voter ID
         let myVoterID = localStorage.getItem('smartpoll_voter_id');
         if (!myVoterID) {
             myVoterID = 'voter-' + Math.random().toString(36).substr(2, 9);
@@ -64,14 +105,11 @@
         if (roomCode) {
             socket.emit('join', { room: roomCode, type: 'voter' });
         } else {
-            showError("Missing room code.");
+            showError("Room Code Missing");
         }
 
-        // --- SOCKET EVENT HANDLERS ---
-
-        socket.on('error_message', (data) => showError(data.msg));
-
         socket.on('new_question', (data) => {
+            isSubmitting = false; 
             if (!data) {
                 showFinished();
                 return;
@@ -79,17 +117,21 @@
             renderQuestion(data);
         });
 
-        // --- UI FUNCTIONS ---
+        socket.on('poll_started', () => {
+            if (roomCode) socket.emit('join', { room: roomCode, type: 'voter' });
+        });
+
+        socket.on('disconnect', () => {
+            showError("Connection Lost...");
+        });
 
         function renderQuestion(data) {
-            // UI Cleanup
             document.getElementById('status-container').classList.add('hidden');
             document.getElementById('finished-container').classList.add('hidden');
             document.getElementById('question-container').classList.remove('hidden');
 
-            // Set content
             document.getElementById('question-text').innerText = data.text;
-            document.getElementById('q-number').innerText = `ID: ${data.index}`;
+            document.getElementById('q-number').innerText = `Question ${data.index + 1}`;
             currentIdx = data.index;
 
             const grid = document.getElementById('options-grid');
@@ -97,34 +139,25 @@
 
             data.options.forEach(opt => {
                 const btn = document.createElement('button');
-                btn.className = "option-btn w-full bg-[#242424] hover:bg-[#2A2A2A] text-left p-5 rounded-2xl border border-[#333] hover:border-[#7F77DD] transition-all duration-200 group flex justify-between items-center";
+                btn.className = "option-btn w-full bg-slate-50 hover:bg-white text-left p-5 rounded-2xl border border-slate-100 hover:border-royal/40 hover:shadow-lg hover:shadow-royal/5 transition-all duration-200 group flex justify-between items-center";
                 
                 btn.innerHTML = `
-                    <span class="font-medium group-hover:text-white text-gray-300">${opt.label || "Option"}</span>
-                    <svg class="w-5 h-5 text-gray-700 group-hover:text-[#7F77DD] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    <span class="font-bold text-slate-600 group-hover:text-royal transition-colors">${opt.label}</span>
+                    <div class="w-6 h-6 rounded-full border-2 border-slate-200 group-hover:border-royal flex items-center justify-center transition-all bg-white">
+                        <div class="w-2.5 h-2.5 bg-royal rounded-full opacity-0 group-hover:opacity-100 transition-all"></div>
+                    </div>
                 `;
                 
                 btn.onclick = () => {
-                    // Prepare the target index
-                    let nextTarget = opt.next;
-                    
-                    // Logic: If next is a number, pass it. If null/empty, pass null.
-                    // The server will handle the +1 fallback safely.
-                    if (nextTarget !== null && nextTarget !== undefined && nextTarget !== "") {
-                        nextTarget = parseInt(nextTarget);
-                    } else {
-                        nextTarget = null;
-                    }
-
+                    if (isSubmitting) return; 
+                    isSubmitting = true;
                     socket.emit('submit_vote', {
                         room: roomCode,
                         answer: opt.label, 
                         current_index: currentIdx,
-                        next_index: nextTarget,
                         voter_id: myVoterID
                     });
-                    
-                    showLoading("Sending response...");
+                    showLoading("Syncing Vote...");
                 };
                 grid.appendChild(btn);
             });
@@ -135,20 +168,22 @@
             document.getElementById('status-container').classList.remove('hidden');
             document.getElementById('loader').classList.remove('hidden');
             document.getElementById('status-message').innerText = msg;
-            document.getElementById('status-message').classList.remove('text-red-500');
-        }
-
-        function showError(msg) {
-            document.getElementById('loader').classList.add('hidden');
-            document.getElementById('status-message').innerText = msg;
-            document.getElementById('status-message').classList.add('text-red-500');
-            setTimeout(() => { window.location.href = '/'; }, 3500);
         }
 
         function showFinished() {
             document.getElementById('status-container').classList.add('hidden');
             document.getElementById('question-container').classList.add('hidden');
             document.getElementById('finished-container').classList.remove('hidden');
+        }
+
+        function showError(msg) {
+            const loader = document.getElementById('loader');
+            const statusMsg = document.getElementById('status-message');
+            document.getElementById('question-container').classList.add('hidden');
+            document.getElementById('status-container').classList.remove('hidden');
+            loader.classList.add('hidden');
+            statusMsg.innerText = msg;
+            statusMsg.classList.add('text-rose-500');
         }
     </script>
 </body>

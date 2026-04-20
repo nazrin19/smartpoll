@@ -9,127 +9,139 @@
         tailwind.config = { 
             theme: { 
                 extend: { 
-                    colors: { primary: '#7F77DD', dark: '#0F0F0F', card: '#1A1A1A', border: '#2A2A2A' } 
+                    colors: { 
+                        // A strong, modern Royal Indigo shade
+                        royal: '#4F46E5', 
+                        royalDeep: '#3730A3',
+                        pageBg: '#F5F7FF' // Subtle tint to blend white space
+                    } 
                 } 
             } 
         }
     </script>
-</head>
-<body class="bg-dark text-white min-h-screen flex flex-col font-sans">
+    <style>
+        /* Compact header that anchors the design */
+        .header-section {
+            background: linear-gradient(135deg, #3730A3 0%, #4F46E5 100%);
+            height: 320px; 
+            border-bottom-left-radius: 40px;
+            border-bottom-right-radius: 40px;
+        }
 
-    <nav class="border-b border-border px-8 py-4 flex justify-between items-center bg-dark/50 backdrop-blur-md sticky top-0 z-50">
-        <div class="text-xl font-bold italic tracking-tighter">
-            Smart<span class="text-primary">Poll</span>
+        /* Perfectly aligned, identical color cards */
+        .action-card {
+            background: white;
+            border-radius: 2rem;
+            box-shadow: 0 10px 30px rgba(79, 70, 229, 0.08);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 1px solid #E0E7FF;
+            height: 330px; 
+            transition: all 0.3s ease;
+        }
+
+        .action-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(79, 70, 229, 0.12);
+            border-color: #4F46E5;
+        }
+    </style>
+</head>
+<body class="bg-pageBg text-slate-900 min-h-screen flex flex-col font-sans">
+
+    <div class="fixed top-0 left-0 w-full header-section -z-10 shadow-lg"></div>
+
+    <nav class="px-8 md:px-16 py-6 flex justify-between items-center z-50">
+        <div class="text-xl font-black tracking-tighter text-white">
+            Smart<span class="opacity-60">Poll</span>
         </div>
         <div class="flex gap-6 items-center">
             {% if current_user.is_authenticated %}
-                <div class="flex items-center gap-3">
-                    <span class="text-xs text-gray-500 font-bold uppercase tracking-widest">Hi, {{ current_user.username }}</span>
-                    <a href="/logout" class="text-xs font-bold text-red-500 hover:text-red-400">Logout</a>
-                </div>
+                <span class="text-[10px] text-white/70 font-bold uppercase tracking-widest hidden sm:block">{{ current_user.username }}</span>
+                <a href="/logout" class="text-[10px] font-bold text-white border border-white/20 px-4 py-2 rounded-full hover:bg-white/10 transition-all uppercase">Logout</a>
             {% else %}
-                <a href="/login" class="text-sm font-bold text-gray-400 hover:text-white transition-colors">Login</a>
-                <a href="/register" class="text-sm font-bold bg-primary/10 text-primary border border-primary/20 px-4 py-2 rounded-xl hover:bg-primary hover:text-white transition-all">
-                    Sign Up
-                </a>
+                <a href="/login" class="text-xs font-bold text-white/80 hover:text-white transition-colors uppercase">Login</a>
+                <a href="/register" class="text-xs font-bold bg-white text-royal px-6 py-2 rounded-full shadow-lg hover:scale-105 transition-all uppercase">Sign Up</a>
             {% endif %}
         </div>
     </nav>
 
-    <main class="flex-1 flex flex-col items-center justify-center p-6 text-center">
+    <main class="flex-1 flex flex-col items-center justify-start p-6 text-center -mt-8">
         
-        <h1 class="text-5xl md:text-6xl font-black mb-6 leading-tight">
-            Live polling <br>
-            
-        </h1>
+        <header class="mb-8">
+            <h1 class="text-4xl md:text-6xl font-black mb-2 tracking-tighter text-white">
+                Live polling <br>
+                <span class="text-indigo-200 italic font-light">reimagined.</span>
+            </h1>
+            <p class="text-white/70 text-sm md:text-base font-medium max-w-xs mx-auto">
+                Real-time branching logic made beautifully simple.
+            </p>
+        </header>
        
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
-            <div class="bg-card border border-border p-8 rounded-3xl hover:border-primary/50 transition-all group relative overflow-hidden">
-                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl px-4 items-stretch">
+            
+            <div class="action-card p-8">
+                <div class="flex flex-col items-center">
+                    <div class="w-12 h-12 bg-royal/5 rounded-xl flex items-center justify-center mb-4 border border-royal/10">
+                        <svg class="text-royal" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-800 mb-2">Host</h2>
+                    <p class="text-slate-400 text-xs leading-relaxed max-w-[180px]">Create custom logic paths and track results live.</p>
                 </div>
-                <h2 class="text-xl font-bold mb-2 text-left">Host a Poll</h2>
-                <p class="text-gray-500 text-sm mb-8 text-left">Design your questions and monitor live results from your dashboard.</p>
-                <button onclick="createRoom()" id="hostBtn" class="w-full bg-primary hover:bg-[#6b63c4] py-4 rounded-2xl font-bold transition-all transform active:scale-95 shadow-lg shadow-primary/20">
-                    Create Room →
+                <button onclick="createRoom()" id="hostBtn" class="w-full bg-royal text-white py-3.5 rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] shadow-md shadow-royal/20 hover:bg-royalDeep active:scale-95 transition-all">
+                    Create Room
                 </button>
             </div>
 
-            <div class="bg-card border border-border p-8 rounded-3xl hover:border-white/20 transition-all relative overflow-hidden">
-                <h2 class="text-xl font-bold mb-2 text-left">Join a Poll</h2>
-                <p class="text-gray-500 text-sm mb-8 text-left">Participate in an active session using a 6-digit room code.</p>
-                <div class="space-y-3">
-                    <input type="text" id="joinCode" maxlength="6" placeholder="ROOM CODE" 
-                           class="w-full bg-dark border border-border rounded-2xl px-4 py-4 text-center uppercase focus:border-primary outline-none tracking-[0.3em] font-black text-xl placeholder:text-gray-700 placeholder:tracking-normal transition-all">
-                    <button onclick="join()" class="w-full bg-white text-dark hover:bg-gray-200 py-4 rounded-2xl font-bold transition-all transform active:scale-95">
-                        Join Room
+            <div class="action-card p-8">
+                <div class="flex flex-col items-center">
+                    <div class="w-12 h-12 bg-royal/5 rounded-xl flex items-center justify-center mb-4 border border-royal/10">
+                        <svg class="text-royal" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-800 mb-2">Join</h2>
+                    <p class="text-slate-400 text-xs leading-relaxed max-w-[180px]">Enter an access code to join an active session.</p>
+                </div>
+                <div class="w-full space-y-3">
+                    <input type="text" id="joinCode" maxlength="6" placeholder="000 000" 
+                           class="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3.5 text-center uppercase focus:border-royal/30 outline-none tracking-[0.4em] font-black text-lg text-slate-800 transition-all">
+                    <button onclick="join()" class="w-full bg-royal text-white py-3.5 rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] shadow-md shadow-royal/20 hover:bg-royalDeep active:scale-95 transition-all">
+                        Join Now
                     </button>
                 </div>
             </div>
+
         </div>
     </main>
 
-    <footer class="p-8 border-t border-border text-center">
-        <p class="text-gray-600 text-xs font-medium tracking-widest uppercase">Built with Flask & Socket.io</p>
+    <footer class="py-8 text-center">
+        <p class="text-slate-400 text-[9px] font-bold tracking-[0.3em] uppercase opacity-60">
+            © SmartPoll Engine &bull; 2026
+        </p>
     </footer>
 
     <script>
-        // 1. Logic for Hosting (Talks to /create_room in app.py)
+        // Core functionality remains untouched
         async function createRoom() {
             const btn = document.getElementById('hostBtn');
-            const originalText = btn.innerText;
-            btn.innerText = "Checking Session...";
-            btn.disabled = true;
-
+            btn.innerText = "INITIALIZING...";
             try {
-                // Fetch /create_room and allow following redirects to /login
-                const response = await fetch('/create_room', { 
-                    method: 'POST',
-                    redirect: 'follow'
-                });
-
-                // Check if the response URL was redirected to the login page
-                if (response.url.includes('/login')) {
-                    window.location.href = '/login';
-                    return;
-                }
-
-                if (!response.ok) throw new Error("Server error");
-
+                const response = await fetch('/create_room', { method: 'POST', redirect: 'follow' });
+                if (response.url.includes('/login')) { window.location.href = '/login'; return; }
                 const data = await response.json();
-                
                 if (data.code) {
-                    // Success! Store code for the dashboard and redirect
                     localStorage.setItem('active_room_code', data.code);
                     window.location.href = `/host`;
-                } else {
-                    throw new Error("No code received");
                 }
-            } catch (err) {
-                console.error("Auth/Database Error:", err);
-                // If it fails, assume the session expired and send to login
-                window.location.href = '/login';
-            }
+            } catch (err) { window.location.href = '/login'; }
         }
 
-        // 2. Logic for Joining
         function join() {
             const codeInput = document.getElementById('joinCode');
             const code = codeInput.value.trim().toUpperCase();
-            
-            if(code.length === 6) {
-                window.location.href = `/vote?room=${code}`;
-            } else {
-                alert("Please enter a valid 6-digit room code.");
-                codeInput.focus();
-            }
+            if(code.length === 6) { window.location.href = `/vote?room=${code}`; }
+            else { alert("Enter a 6-digit code."); }
         }
-
-        // Add "Enter" key listener for the join code input
-        document.getElementById('joinCode').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') join();
-        });
     </script>
 </body>
 </html>

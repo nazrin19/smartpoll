@@ -174,44 +174,60 @@ def on_disconnect():
 def handle_vote(data):
     room_code = data.get('room')
     v_id = data.get('voter_id')
-    answer = data.get('answer')
+    answer = str(data.get('answer', '')).strip()
     
-    # Safely convert current_index to int
     try:
         q_idx = int(data.get('current_index', 0))
-    except:
+    except (ValueError, TypeError):
         q_idx = 0
 
-    # 1. Prevent Duplicates
+    # 1. Save Vote
     existing = VoterRecord.query.filter_by(voter_id=v_id, room_code=room_code, question_index=q_idx).first()
-    
     if not existing:
         db.session.add(VoterRecord(voter_id=v_id, room_code=room_code, question_index=q_idx))
         db.session.add(Vote(room_code=room_code, answer=answer, question_index=q_idx, voter_id=v_id))
         db.session.commit()
-        # Update the host's real-time charts
-        emit('update_dashboard', generate_report(room_code), to=room_code)
+        socketio.emit('update_dashboard', generate_report(room_code), to=room_code)
     
-    # 2. CALCULATE NEXT QUESTION (Branching Logic)
+    # 2. Smart Branching Logic (Skips Private Branch Questions)
     room_data = Room.query.filter_by(code=room_code).first()
     if room_data:
-        qs = json.loads(room_data.questions_json)
         try:
-            raw_next = data.get('next_index')
-            
-            # --- PRIORITY BRANCHING ---
-            # If the voter chose an option with a specific branch (next_index), use it.
-            # Otherwise, if it's empty/null, move to the next question index (q_idx + 1).
-            if raw_next is not None and str(raw_next).strip() != "":
-                next_idx = int(raw_next)
-            else:
-                next_idx = q_idx + 1
+            qs = json.loads(room_data.questions_json)
+            if q_idx >= len(qs):
+                emit('new_question', None, room=request.sid)
+                return
 
-            # Check if this index exists in our questions array
+            current_q = qs[q_idx]
+            
+            # Identify all indices that are "Targets" of a jump
+            branch_targets = []
+            for q in qs:
+                for opt in q.get('options', []):
+                    target = opt.get('next')
+                    if target is not None and str(target).strip() != "":
+                        branch_targets.append(int(target))
+
+            # Determine explicit jump based on answer
+            next_idx = None
+            for opt in current_q.get('options', []):
+                if str(opt.get('label')).strip() == answer:
+                    jump_val = opt.get('next')
+                    if jump_val is not None and str(jump_val).strip() != "":
+                        next_idx = int(jump_val)
+                    break 
+
+            # If no manual jump, find the next available "Public" question
+            if next_idx is None:
+                potential_next = q_idx + 1
+                while potential_next < len(qs) and potential_next in branch_targets:
+                    potential_next += 1
+                next_idx = potential_next
+
+            # 3. Emit the next question or 'None' (Poll Finished)
             if 0 <= next_idx < len(qs):
                 emit('new_question', {**qs[next_idx], 'index': next_idx}, room=request.sid)
             else: 
-                # If the index is out of range, the user has finished the poll
                 emit('new_question', None, room=request.sid)
 
         except Exception as e:
