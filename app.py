@@ -6,7 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import random, string, json, os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'poll-secret-123'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'poll-secret-123')
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'poll.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
