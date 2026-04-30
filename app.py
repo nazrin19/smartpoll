@@ -157,6 +157,7 @@ def start_poll():
 def on_join(data):
     room_code = data.get('room')
     user_type = data.get('type', 'voter')
+    voter_id = data.get('voter_id')  # ← added
     room_data = Room.query.filter_by(code=room_code).first()
     
     if room_data:
@@ -166,10 +167,19 @@ def on_join(data):
             active_voters[room_code].add(request.sid)
             emit('user_count', {'count': len(active_voters[room_code])}, to=room_code)
             qs = json.loads(room_data.questions_json)
-            if qs: emit('new_question', {**qs[0], 'index': 0}, room=request.sid)
+            if qs:
+                # ← Check if voter already voted
+                already_voted = VoterRecord.query.filter_by(
+                    voter_id=voter_id,
+                    room_code=room_code
+                ).first()
+                
+                if already_voted:
+                    emit('new_question', None, room=request.sid)  # show finished screen
+                else:
+                    emit('new_question', {**qs[0], 'index': 0}, room=request.sid)
         elif user_type == 'host':
             emit('update_dashboard', generate_report(room_code), room=request.sid)
-
 @socketio.on('disconnect')
 def on_disconnect():
     for room_code, sids in active_voters.items():

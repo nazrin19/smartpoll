@@ -103,7 +103,7 @@
         }
 
         if (roomCode) {
-            socket.emit('join', { room: roomCode, type: 'voter' });
+            socket.emit('join', { room: roomCode, type: 'voter',voter_id: myVoterID  });
         } else {
             showError("Room Code Missing");
         }
