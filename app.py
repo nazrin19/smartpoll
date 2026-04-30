@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_socketio import SocketIO, emit, join_room
 from flask_sqlalchemy import SQLAlchemy
@@ -5,10 +7,14 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import random, string, json, os
 
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'poll-secret-123')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY','local dev secret')
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'poll.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    'DATABASE_URL',
+    'sqlite:///' + os.path.join(basedir, 'poll.db')
+)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -107,6 +113,7 @@ def login():
     return render_template('login.html')
 
 @app.route('/logout')
+@login_required
 def logout():
     logout_user()
     return redirect(url_for('index'))
